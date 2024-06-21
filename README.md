@@ -46,18 +46,19 @@ This guide will help you set up an ERPNext system where employees can only mark 
 ```javascript
 frappe.ui.form.on('Attendance', {
   onload: function(frm) {
-    // Replace 'YOUR_API_KEY' with your actual Abstract API key
     const apiKey = '0dce619493ea4deb823dc3a1cbd12f58';
     const ipAddress = '2406:7400:c4:9ce9:572d:a555:bf9:331e'; // Replace with the actual IP address or leave empty for automatic detection
 
-    // Coordinates to match against
-    const expectedLatitude = 13.0777088;
-    const expectedLongitude = 80.1636352;
+    // Coordinates to match
+    const locations = [
+      { name: 'Chennai', latitude: 13.8996, longitude: 80.2209 },
+      { name: 'Bangalore', latitude: 12.8996, longitude: 80.2209},
+      { name: 'Noida', latitude: 13.0358, longitude: 80.2444 }
+    ];
+    const tolerance = 0.01; // Tolerance for coordinate comparison
 
-    // Construct the API URL
-    const apiUrl = `https://ipgeolocation.abstractapi.com/v1/?api_key=${apiKey}&ip_address=${ipAddress}`;
+    const apiUrl = `https://ipgeolocation.abstractapi.com/v1/?api_key=${apiKey}${ipAddress ? `&ip_address=${ipAddress}` : ''}`;
 
-    // Make the API request
     fetch(apiUrl)
       .then(response => {
         if (!response.ok) {
@@ -68,27 +69,35 @@ frappe.ui.form.on('Attendance', {
       .then(data => {
         console.log('Geolocation Data:', data);
 
-        // Extract latitude and longitude from the data
         const latitude = data.latitude;
         const longitude = data.longitude;
 
-        // Log latitude and longitude to the console
         console.log('Latitude:', latitude);
         console.log('Longitude:', longitude);
 
-        // Compare fetched coordinates with expected coordinates
-        if (latitude === expectedLatitude && longitude === expectedLongitude) {
-          // Proceed with saving the document
+        let locationMatched = false;
+        let matchedLocationName = '';
+
+        for (const location of locations) {
+          if (Math.abs(latitude - location.latitude) <= tolerance && Math.abs(longitude - location.longitude) <= tolerance) {
+            locationMatched = true;
+            matchedLocationName = location.name;
+            break;
+          }
+        }
+
+        if (locationMatched) {
+          frm.set_value('custom_work_location', matchedLocationName);
           frm.save();
         } else {
-          // Show error and restrict saving
-          frappe.msgprint('Error: Current location does not match coordinates. Cannot Proceed.');
+          frappe.msgprint('Error: Current location does not match any of the predefined coordinates. Cannot Proceed.');
           frm.disable_save();
         }
       })
       .catch(error => {
         console.error('Error fetching geolocation:', error);
-        // Optionally handle error further or show appropriate message
+        frappe.msgprint('Error fetching geolocation. Please try again later.');
+        frm.disable_save();
       });
   }
 });
@@ -100,9 +109,12 @@ frappe.ui.form.on('Attendance', {
 2. Click on **New**.
 3. Fill in the required fields (employee, date, etc.).
 4. If you get the error as below it means you are at invalid location.
+5. If your in the correct work location, the work location field will pick the location name by default.
 
 **Screenshot:**
 ![Setup Attendance](./assets/Attendance_geolocation_error.png)
+
+![Setup Attendance](./assets/Mached_work_location.png)
 
 #### License
 
